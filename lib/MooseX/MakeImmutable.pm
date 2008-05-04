@@ -5,7 +5,7 @@ use strict;
 
 =head1 NAME
 
-MooseX::MakeImmutable - The great new MooseX::MakeImmutable!
+MooseX::MakeImmutable - A convenient way to make many Moose immutable (or mutable) in one shot
 
 =head1 VERSION
 
@@ -15,38 +15,154 @@ Version 0.01
 
 our $VERSION = '0.01';
 
-
 =head1 SYNOPSIS
-
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
 
     use MooseX::MakeImmutable;
 
-    my $foo = MooseX::MakeImmutable->new();
     ...
 
-=head1 EXPORT
+    my $manifest = <<_MANIFEST_;
 
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
+        My::Moose::Hierarchy::Alpha
+        My::Moose::Hierarchy::Bravo
+        My::Moose::Hierarchy::Charlie
 
-=head1 FUNCTIONS
+         # Comments (lines leading with a pound) and blank lines are ignored by the finder
+        My::Moose::Hierarchy::Delta::*
+            # Not strict about leading/trailing whitespace either
+         My::Moose::Hierarchy::Epsilon::+
 
-=head2 function1
+    _MANIFEST_
+
+    MooseX::MakeImmutable->make_immutable($manifest);
+
+    # The above code has the following effects:
+    #
+    # ::Alpha, ::Bravo, and ::Charlie are now immutable (if they exist)
+    #
+    # Every Moose::Object under the Delta:: namespace is now immutable
+    #   (although ::Delta, if a Moose::Object, IS still mutable)
+    #
+    # Every Moose::Object under the Epsilon:: namespace, including
+    #   ::Epsilon is now mutable
+
+    # You can also use MooseX::MakeImmutable to make something mutable again:
+    MooseX::MakeImmutable->make_mutable("My::Moose::Hierarchy::Epsilon::+")
+
+=head1 DESCRIPTION
+
+MooseX::MakeImmutable is a tool for loading every Moose::Object within a hierarchy and making each immutable/mutable. It uses L<Module::Pluggable> for searching and will load both inner and .pm packages.
+
+In a nutshell, if you add a Moose-based package to your object hierarchy, then MooseX::MakeImmutable, given a proper manifest, will pick it up and mark it im/mutable (without you having to manually write-out the new package).
+
+NOTE: The name "MakeImmutable" is a bit of a misnomer, since this package can both make_immutable AND make_mutable. However, 90% of the time, you'll probably be using ->make_immutable
+
+=head2 Writing a MooseX::MakeImmutable::Finder manifest
+
+A manifest consists of one package per line
+
+For each line, leading and trailing whitespace is stripped
+
+Lines that are blank or begin with a pound (#) are skipped
+
+A package with a trailing ::* IS NOT made im/mutable, but every package under that namespace is
+
+A package with a trailing ::+ or :: IS made im/mutable, along with every package under that namespace
+
+=head1 METHODS
+
+=head2 MooseX::MakeImmutable->freeze( <manifest>, ... )
+
+=head2 MooseX::MakeImmutable->make_immutable( <manifest>, ... )
+
+Create a finder from <manifest> and make each found Moose::Object immutable
+
+Any extra passed-in options will be forwarded to ->meta->make_immutable(...) excepting C<include_inner> and C<exclude>, which are used to configure the finder.
+
+C<freeze> is an alias for C<make_immutable>
+
+=head2 MooseX::MakeImmutable->thaw( <manifest>, ... )
+
+=head2 MooseX::MakeImmutable->make_mutable( <manifest>, ... )
+
+Create a finder from <manifest> and make each found Moose::Object mutable
+
+Any extra passed-in options will be forwarded to ->meta->make_mutable(...) excepting C<include_inner> and C<exclude>, which are used to configure the finder.
+
+C<thaw> is an alias for C<make_mutable>
+
+=head2 MooseX::MakeImmutable->finder( ... )
+
+Create and return a MooseX::MakeImmutable::Finder object
+
+The returned object uses L<Module::Pluggable> to scan the specified namespace(s) for potential Moose objects. It accepts the following options:
+
+    manifest            The finder manifest, described above
+
+    include_inner       If true, then the finder will "find" inner Moose packages. On by default
+
+    exclude             A list where each item is one of:
+
+                        * A package name to be excluded (string)
+                        * A regular expression that matches if a package should be excluded 
+                        * A CODE block returning true if a package should be excluded (the package name is passed in as the first argument)
 
 =cut
 
-sub function1 {
+use MooseX::MakeImmutable::Finder;
+use Scalar::Util qw/blessed/;
+
+sub finder {
+    my $class = shift;
+    my $finder = MooseX::MakeImmutable::Finder->new(@_);
+    return $finder;
 }
 
-=head2 function2
+sub _given_finder {
+    my $class = shift;
+    my $given = shift;
 
-=cut
+    my %finder;
+    exists $given->{$_} and $finder{$_} = delete $given->{$_} for qw/include_inner exclude/;
+    my $finder = delete $given->{finder};
 
-sub function2 {
+    # If finder is already blessed... then just ignore manifest => ... and use the given finder
+    $finder = $class->finder((ref $finder eq "HASH" ? %$finder : ()), %finder, @_) unless blessed $finder;
+
+    return $finder;
 }
+
+sub make_immutable {
+    my $class = shift;
+    my $manifest = shift;
+    my %given = @_;
+
+    my $finder = $class->_given_finder(\%given, manifest => $manifest);
+
+    $_->meta->make_immutable(%given) for $finder->found;
+}
+
+sub freeze {
+    return shift->make_immutable(@_);
+}
+
+sub make_mutable {
+    my $class = shift;
+    my $manifest = shift;
+    my %given = @_;
+
+    my $finder = $class->_given_finder(\%given, manifest => $manifest);
+
+    $_->meta->make_mutable(%given) for $finder->found;
+}
+
+sub thaw {
+    return shift->make_immutable(@_);
+}
+
+=head1 SEE ALSO
+
+L<Moose>
 
 =head1 AUTHOR
 
@@ -54,7 +170,7 @@ Robert Krimen, C<< <rkrimen at cpan.org> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-moosex-makeimmutable at rt.cpan.org>, or through
+Please report any bugs or feature requests to C<bug-moosex-mutate at rt.cpan.org>, or through
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=MooseX-MakeImmutable>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
