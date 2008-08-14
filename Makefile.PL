@@ -3,10 +3,26 @@ use inc::Module::Install;
 name 'MooseX-MakeImmutable';
 all_from 'lib/MooseX/MakeImmutable.pm';
 
-build_requires 'Test::More';
-build_requires 'Test::Deep';
+{
+    require ExtUtils::MakeMaker;
+    use strict;
+    no strict 'refs';
 
-for (split m/\n/, <<_END_) {
+    my $libscan = \&{"ExtUtils::MM_Any::libscan"};
+    *{"ExtUtils::MM_Any::libscan"} = sub {
+        return '' unless $libscan->(@_);
+        return '' if $_[1] =~ /\.sw[p-z]$/;
+        return $_[1];
+    };
+}
+
+{
+    map { my ($pk, $vr) = split m/\s/; build_requires $pk => $vr || 0 } grep { ! /^\s*#/ } split m/\n/, <<_END_;
+Test::More
+Test::Deep
+_END_
+
+    map { my ($pk, $vr) = split m/\s/; requires $pk => $vr || 0 } grep { ! /^\s*#/ } split m/\n/, <<_END_;
 Carp::Clan
 Class::Inspector
 Module::Pluggable 3.8
@@ -15,8 +31,6 @@ List::MoreUtils
 Moose
 Scalar::Util
 _END_
-    my ($module, $version) = split m/\s+/, $_;
-    requires $module, $version;
 }
 
 auto_install;
