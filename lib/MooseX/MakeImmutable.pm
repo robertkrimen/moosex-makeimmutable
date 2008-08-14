@@ -5,17 +5,30 @@ use strict;
 
 =head1 NAME
 
-MooseX::MakeImmutable - A convenient way to make many Moose immutable (or mutable) in one shot
+MooseX::MakeImmutable - A convenient way to make many Moosen immutable (or mutable) in one shot
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 SYNOPSIS
+
+    package MyPackage;
+
+    use Moose;
+    use MooseX::MakeImmutable;
+
+    ...
+
+    MooseX::MakeImmutable->lock_down;
+    # MyPackage and any subdordinate Moose classes are made immutable
+    # Use MooseX::MakeImmutable->open_up to do the opposite
+
+You can also make classes im/mutable with fine-grained control:
 
     use MooseX::MakeImmutable;
 
@@ -71,6 +84,44 @@ A package with a trailing ::+ or :: IS made im/mutable, along with every package
 
 =head1 METHODS
 
+=head2 MooseX::MakeImmutable->lock_down( [ package => <package> ], ... )
+
+Make everything immutable from <package> on downward
+
+If <package> is not specified, then the package will be gotten from caller. This means you can do something like:
+
+    package MyPackage;
+
+    use Moose;
+    use MooseX::MakeImmutable;
+
+    ...
+
+    MooseX::MakeImmutable->lock_down;
+    # Effectively the same as MooseX::MakeImmutable->make_immutable('MyPackage::+');
+
+Any remaining arguments will be passed through to ->make_immutable
+
+=head2 MooseX::MakeImmutable->open_up( [ package => <package> ], ... )
+
+Make everything mutable from <package> on downward
+
+If <package> is not specified, then the package will be gotten from caller. This means you can do something like:
+
+    package MyPackage;
+
+    use Moose;
+    use MooseX::MakeImmutable;
+
+    ...
+
+    MooseX::MakeImmutable->open_up;
+    # Effectively the same as MooseX::MakeImmutable->make_mutable('MyPackage::+');
+
+Any remaining arguments will be passed through to ->make_mutable
+
+=cut
+
 =head2 MooseX::MakeImmutable->freeze( <manifest>, ... )
 
 =head2 MooseX::MakeImmutable->make_immutable( <manifest>, ... )
@@ -111,6 +162,29 @@ The returned object uses L<Module::Pluggable> to scan the specified namespace(s)
 
 use MooseX::MakeImmutable::Finder;
 use Scalar::Util qw/blessed/;
+use Carp::Clan qw/^MooseX::MakeImmutable/;
+
+sub lock_down {
+    my $class = shift;
+    my %given = @_;
+
+    my $package = delete $given{package}; 
+    ($package) = caller unless defined $package;
+    croak "Can't lock down main::" if $package eq "main"; # Moose doesn't, why should we?
+    my $manifest = "${package}::+";
+    $class->make_immutable($manifest, %_);
+}
+
+sub open_up {
+    my $class = shift;
+    my %given = @_;
+
+    my $package = delete $given{package}; 
+    ($package) = caller unless defined $package;
+    croak "Can't open up main::" if $package eq "main"; # Moose doesn't, why should we?
+    my $manifest = "${package}::+";
+    $class->make_mutable($manifest, %_);
+}
 
 sub finder {
     my $class = shift;
@@ -167,6 +241,14 @@ L<Moose>
 =head1 AUTHOR
 
 Robert Krimen, C<< <rkrimen at cpan.org> >>
+
+=head1 SOURCE
+
+You can contribute or fork this project via GitHub:
+
+L<http://github.com/robertkrimen/moosex-makeimmutable/tree/master>
+
+    git clone git://github.com/robertkrimen/moosex-makeimmutable.git MooseX-MakeImmutable
 
 =head1 BUGS
 

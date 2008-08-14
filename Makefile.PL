@@ -3,6 +3,8 @@ use inc::Module::Install;
 name 'MooseX-MakeImmutable';
 all_from 'lib/MooseX/MakeImmutable.pm';
 
+resources repository => 'http://github.com/robertkrimen/moosex-makeimmutable/tree/master';
+
 {
     require ExtUtils::MakeMaker;
     use strict;
@@ -18,8 +20,7 @@ all_from 'lib/MooseX/MakeImmutable.pm';
 
 {
     map { my ($pk, $vr) = split m/\s/; build_requires $pk => $vr || 0 } grep { ! /^\s*#/ } split m/\n/, <<_END_;
-Test::More
-Test::Deep
+Test::Most
 _END_
 
     map { my ($pk, $vr) = split m/\s/; requires $pk => $vr || 0 } grep { ! /^\s*#/ } split m/\n/, <<_END_;
