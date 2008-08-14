@@ -19,6 +19,7 @@ inc/Module/Install/WriteAll.pm
 t/00-load.t
 t/01-finder.t
 t/02-mutate.t
+t/03-lock-down-open-up.t
 t/author/boilerplate.t
 t/author/pod-coverage.t
 t/author/pod.t
